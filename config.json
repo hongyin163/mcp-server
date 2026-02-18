@@ -1,0 +1,28 @@
+{
+    "servers": [
+        {
+            "id": "calculator",
+            "name": "Calculator",
+            "description": "Basic math operations: add, subtract, multiply, divide",
+            "type": "stdio",
+            "command": "node",
+            "args": [
+                "servers/calculator/index.js"
+            ],
+            "autoStart": true,
+            "enabled": true
+        },
+        {
+            "id": "filesystem",
+            "name": "File System",
+            "description": "Read files and list directories on the server",
+            "type": "stdio",
+            "command": "node",
+            "args": [
+                "servers/filesystem/index.js"
+            ],
+            "autoStart": true,
+            "enabled": true
+        }
+    ]
+}
