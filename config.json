@@ -5,6 +5,7 @@
             "name": "北大法宝MCP-法律检索服务",
             "description": "提供法律文书、法规、案例等检索功能",
             "tag": "法律",
+            "locale": "zh-CN",
             "type": "streamable-http",
             "url": "https://apim-gateway.pkulaw.com/mcp-law",
             "auth": {
@@ -19,6 +20,7 @@
             "name": "北大法宝MCP-案例检索服务",
             "description": "提供案例检索功能",
             "tag": "法律",
+            "locale": "zh-CN",
             "type": "streamable-http",
             "url": "https://apim-gateway.pkulaw.com/mcp-case",
             "auth": {
@@ -33,6 +35,7 @@
             "name": "北大法宝MCP-法条检索服务",
             "description": "提供法条检索功能",
             "tag": "法律",
+            "locale": "zh-CN",
             "type": "streamable-http",
             "url": "https://apim-gateway.pkulaw.com/mcp-fatiao",
             "auth": {

@@ -136,6 +136,7 @@ class MCPServerManager {
             name: config.name,
             description: config.description,
             tag: config.tag || 'default',
+            locale: config.locale || null,
             type: config.type,
             status,
             capabilities,

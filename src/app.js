@@ -39,6 +39,9 @@ function validateServerConfig(serverConfig) {
   if (serverConfig.tag !== undefined && typeof serverConfig.tag !== 'string') {
     throw new Error('config.tag must be a string');
   }
+  if (serverConfig.locale !== undefined && serverConfig.locale !== null && typeof serverConfig.locale !== 'string') {
+    throw new Error('config.locale must be a string');
+  }
 
   const type = serverConfig.type || 'stdio';
   if (!['stdio', 'streamable-http'].includes(type)) {
