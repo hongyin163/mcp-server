@@ -6,12 +6,14 @@
     "scripts": {
         "start": "node src/index.js",
         "dev": "nodemon src/index.js",
+        "vercel-build": "echo \"No build step required for Vercel; using serverless function.\"",
         "pm2-start": "pm2 start ecosystem.config.cjs"
     },
     "dependencies": {
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
+        "serverless-http": "^3.2.0",
         "uuid": "^9.0.0"
     },
     "devDependencies": {

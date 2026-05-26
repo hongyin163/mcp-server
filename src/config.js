@@ -19,6 +19,10 @@ const config = {
   allowedOrigins: parseList(process.env.ALLOWED_ORIGINS),
   passthroughAuthHeaders: parseList(process.env.MCP_PASSTHROUGH_AUTH_HEADERS, ['authorization', 'x-api-key', 'apikey'])
     .map((h) => h.toLowerCase()),
+  configFile: process.env.MCP_CONFIG_FILE
+    ? path.resolve(process.cwd(), process.env.MCP_CONFIG_FILE)
+    : path.resolve(__dirname, '../config.json'),
+  disableAutoRegister: String(process.env.MCP_DISABLE_AUTO_REGISTER).toLowerCase() === 'true',
 };
 
 module.exports = config;

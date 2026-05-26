@@ -22,6 +22,19 @@ npm run dev        # development (nodemon)
 npm start          # production
 ```
 
+## Vercel Deployment
+
+1. 在 Vercel 项目中设置 `Root Directory` 为 `mcp-server`。
+2. 保证 `vercel.json` 在 `mcp-server` 目录下。
+3. 在 Vercel 环境变量中配置：
+   - `MCP_DISABLE_AUTO_REGISTER=true`（如果你不希望自动加载本地 stdio 服务）
+   - `MCP_ADMIN_TOKEN`（可选）
+   - `ALLOWED_ORIGINS`（可选）
+   - `MCP_CONFIG_FILE=./config.json` 或自定义配置文件路径
+4. 部署后，服务根路径即可访问，例如 `https://your-project.vercel.app/health`、`/mcp`。
+
+> 注意：Vercel 上不适合运行本地 stdio 子进程服务。如果你的 `config.json` 中有 `stdio` 类型服务，建议改为 `streamable-http` 或在普通云服务上运行。
+
 ## Add a New MCP Server
 
 1. Create `servers/<name>/index.js` (see `servers/calculator/index.js` as template)
