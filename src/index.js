@@ -1,27 +1,97 @@
 'use strict';
 
-require('dotenv').config();
-const http = require('http');
 const express = require('express');
-const { WebSocketServer } = require('ws');
+const cors = require('cors');
 const path = require('path');
+const config = require('./config');
 
 const MCPServerManager = require('./manager');
 const MessageRouter = require('./router');
 
-const PORT = process.env.PORT || 3002;
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const PORT = config.port;
+const MCP_ADMIN_TOKEN = config.mcpAdminToken;
+const ALLOWED_ORIGINS = config.allowedOrigins;
 
-// ─── Express app (health check) ──────────────────────────────────────────────
 const app = express();
-
-app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', servers: manager.listServers() });
-});
-
-// ─── MCP Server Manager ───────────────────────────────────────────────────────
 const manager = new MCPServerManager();
 const router = new MessageRouter(manager);
+
+function createCorsOptions() {
+    if (ALLOWED_ORIGINS.length === 0) {
+        return { origin: true };
+    }
+    return {
+        origin(origin, callback) {
+            if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+                callback(null, true);
+                return;
+            }
+            callback(new Error('Origin not allowed'));
+        },
+    };
+}
+
+function parseJsonRpcMessage(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+    if (body.jsonrpc !== '2.0' || typeof body.method !== 'string') return null;
+    return body;
+}
+
+function validateServerConfig(config) {
+    if (!config || typeof config !== 'object') throw new Error('Invalid config payload');
+    if (!config.id || typeof config.id !== 'string') throw new Error('config.id is required');
+    if (!config.name || typeof config.name !== 'string') throw new Error('config.name is required');
+    if (config.tag !== undefined && typeof config.tag !== 'string') {
+        throw new Error('config.tag must be a string');
+    }
+
+    const type = config.type || 'stdio';
+    if (!['stdio', 'streamable-http'].includes(type)) {
+        throw new Error('config.type must be "stdio" or "streamable-http"');
+    }
+
+    if (type === 'stdio') {
+        if (!config.command || typeof config.command !== 'string') {
+            throw new Error('stdio config.command is required');
+        }
+        if (config.args && !Array.isArray(config.args)) {
+            throw new Error('stdio config.args must be an array');
+        }
+    }
+
+    if (type === 'streamable-http') {
+        if (!config.url || typeof config.url !== 'string') {
+            throw new Error('streamable-http config.url is required');
+        }
+    }
+}
+
+function requireAdmin(req, res, next) {
+    if (!MCP_ADMIN_TOKEN) {
+        next();
+        return;
+    }
+
+    const auth = req.headers.authorization || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (token !== MCP_ADMIN_TOKEN) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+    next();
+}
+
+function extractPassthroughAuthHeaders(req) {
+    const headers = {};
+    for (const [rawName, rawValue] of Object.entries(req.headers || {})) {
+        const name = String(rawName || '').toLowerCase();
+        if (!name.startsWith('x-mcp-auth-')) continue;
+        const target = name.slice('x-mcp-auth-'.length).trim().toLowerCase();
+        if (!target) continue;
+        headers[target] = Array.isArray(rawValue) ? rawValue.join(',') : String(rawValue);
+    }
+    return headers;
+}
 
 // Load config and register servers
 async function loadConfig() {
@@ -34,79 +104,136 @@ async function loadConfig() {
     console.log(`[gateway] Registered ${config.servers.length} server(s)`);
 }
 
-// ─── HTTP + WebSocket server ──────────────────────────────────────────────────
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+app.use(cors(createCorsOptions()));
+app.use(express.json({ limit: '2mb' }));
 
-wss.on('connection', (ws, req) => {
-    // Origin check
-    const origin = req.headers.origin || '';
-    if (ALLOWED_ORIGINS.length > 0 && !ALLOWED_ORIGINS.includes(origin)) {
-        console.warn(`[gateway] Rejected connection from origin: ${origin}`);
-        ws.close(1008, 'Origin not allowed');
+app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', servers: manager.listServers() });
+});
+
+app.get('/servers', (_req, res) => {
+    res.json({ servers: manager.listServers() });
+});
+
+app.get('/admin/servers', requireAdmin, (_req, res) => {
+    const servers = manager.listServers().map((s) => ({
+        ...s,
+        config: manager.getServerConfig(s.id),
+    }));
+    res.json({ servers });
+});
+
+app.post('/admin/servers/register', requireAdmin, async (req, res) => {
+    try {
+        const config = req.body?.config;
+        validateServerConfig(config);
+        await manager.registerOrUpdate(config);
+        res.json({ ok: true, server: manager.listServers().find((s) => s.id === config.id) });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+app.post('/admin/servers/unregister', requireAdmin, (req, res) => {
+    try {
+        const serverId = req.body?.serverId;
+        if (!serverId || typeof serverId !== 'string') {
+            throw new Error('serverId is required');
+        }
+        manager.unregister(serverId);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+app.post('/admin/servers/start', requireAdmin, async (req, res) => {
+    try {
+        const serverId = req.body?.serverId;
+        if (!serverId || typeof serverId !== 'string') {
+            throw new Error('serverId is required');
+        }
+        await manager.start(serverId);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+app.post('/admin/servers/stop', requireAdmin, (req, res) => {
+    try {
+        const serverId = req.body?.serverId;
+        if (!serverId || typeof serverId !== 'string') {
+            throw new Error('serverId is required');
+        }
+        manager.stop(serverId);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+app.get('/servers/:serverId/tools', async (req, res) => {
+    try {
+        const passthroughAuthHeaders = extractPassthroughAuthHeaders(req);
+        const result = await manager.sendRequest(
+            req.params.serverId,
+            'tools/list',
+            {},
+            undefined,
+            { passthroughAuthHeaders }
+        );
+        res.json({ serverId: req.params.serverId, ...result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/mcp', async (req, res) => {
+    const payload = req.body;
+    const passthroughAuthHeaders = extractPassthroughAuthHeaders(req);
+
+    // JSON-RPC batch
+    if (Array.isArray(payload)) {
+        if (payload.length === 0) {
+            res.status(400).json({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } });
+            return;
+        }
+        const responses = await Promise.all(payload.map(async (msg) => {
+            const parsed = parseJsonRpcMessage(msg);
+            if (!parsed) return { jsonrpc: '2.0', id: msg?.id ?? null, error: { code: -32600, message: 'Invalid Request' } };
+            try {
+                return await router.route(parsed, { passthroughAuthHeaders });
+            } catch (err) {
+                return { jsonrpc: '2.0', id: parsed.id ?? null, error: { code: -32000, message: err.message } };
+            }
+        }));
+        res.json(responses);
         return;
     }
 
-    console.log(`[gateway] Client connected from ${req.socket.remoteAddress}`);
+    const message = parseJsonRpcMessage(payload);
+    if (!message) {
+        res.status(400).json({ jsonrpc: '2.0', id: payload?.id ?? null, error: { code: -32600, message: 'Invalid Request' } });
+        return;
+    }
 
-    // Send server list immediately on connect
-    const servers = manager.listServers();
-    ws.send(JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'gateway/server_list',
-        params: { servers },
-    }));
-
-    ws.on('message', async (data) => {
-        let message;
-        try {
-            message = JSON.parse(data.toString());
-        } catch {
-            ws.send(JSON.stringify({
-                jsonrpc: '2.0',
-                id: null,
-                error: { code: -32700, message: 'Parse error' },
-            }));
-            return;
-        }
-
-        try {
-            const response = await router.route(message);
-            ws.send(JSON.stringify(response));
-        } catch (err) {
-            ws.send(JSON.stringify({
-                jsonrpc: '2.0',
-                id: message.id ?? null,
-                error: { code: -32000, message: err.message },
-            }));
-        }
-    });
-
-    ws.on('close', () => {
-        console.log(`[gateway] Client disconnected`);
-    });
-
-    ws.on('error', (err) => {
-        console.error(`[gateway] WebSocket error: ${err.message}`);
-    });
+    try {
+        const response = await router.route(message, { passthroughAuthHeaders });
+        res.json(response);
+    } catch (err) {
+        res.status(500).json({ jsonrpc: '2.0', id: message.id ?? null, error: { code: -32000, message: err.message } });
+    }
 });
 
-// ─── Start ────────────────────────────────────────────────────────────────────
 loadConfig()
     .then(() => {
-        server.listen(PORT, () => {
-            console.log(`[gateway] MCP Gateway running on ws://localhost:${PORT}`);
-            console.log(`[gateway] Health check: http://localhost:${PORT}/health`);
+        app.listen(PORT, () => {
+            console.log(`[gateway] MCP Gateway running on http://localhost:${PORT}`);
+            console.log(`[gateway] JSON-RPC endpoint: http://localhost:${PORT}/mcp`);
         });
     })
     .catch((err) => {
         console.error('[gateway] Failed to start:', err);
         process.exit(1);
     });
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('[gateway] Shutting down...');
-    wss.close();
-    server.close(() => process.exit(0));
-});

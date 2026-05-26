@@ -2,7 +2,7 @@
 
 /**
  * MessageRouter
- * Routes incoming WebSocket messages to the correct MCP server managed by MCPServerManager.
+ * Routes incoming HTTP JSON-RPC messages to the correct MCP server managed by MCPServerManager.
  *
  * Message format from client:
  * {
@@ -26,10 +26,10 @@ class MessageRouter {
 
     /**
      * Route a client message to the appropriate MCP server.
-     * @param {object} message - parsed JSON from WebSocket client
+     * @param {object} message - parsed JSON-RPC message from HTTP client
      * @returns {Promise<object>} JSON-RPC response to send back
      */
-    async route(message) {
+    async route(message, context = {}) {
         const { serverId, id, method, params } = message;
 
         // Special: list all available servers
@@ -52,13 +52,38 @@ class MessageRouter {
             }
         }
 
+        // Special: list tools from a target server
+        if (method === 'gateway/list_tools') {
+            const { serverId: targetId } = params || {};
+            if (!targetId) return this._error(id, -32602, 'Missing "params.serverId"');
+
+            try {
+                const result = await this.manager.sendRequest(
+                    targetId,
+                    'tools/list',
+                    {},
+                    undefined,
+                    { passthroughAuthHeaders: context.passthroughAuthHeaders }
+                );
+                return { jsonrpc: '2.0', id, result };
+            } catch (err) {
+                return this._error(id, -32000, err.message);
+            }
+        }
+
         // All other methods: forward to the target MCP server
         if (!serverId) {
             return this._error(id, -32600, 'Missing "serverId" in request');
         }
 
         try {
-            const result = await this.manager.sendRequest(serverId, method, params);
+            const result = await this.manager.sendRequest(
+                serverId,
+                method,
+                params,
+                undefined,
+                { passthroughAuthHeaders: context.passthroughAuthHeaders }
+            );
             return { jsonrpc: '2.0', id, result };
         } catch (err) {
             return this._error(id, -32000, err.message);
