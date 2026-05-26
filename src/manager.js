@@ -141,6 +141,8 @@ class MCPServerManager {
             status,
             capabilities,
             enabled: config.enabled,
+            authRequired: config.authRequired,
+            authWebsite: config.authWebsite,
         }));
     }
 
