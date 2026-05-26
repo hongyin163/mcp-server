@@ -12,6 +12,8 @@
                 "envHeaders": {
                 }
             },
+            "authRequired": true,
+            "authWebsite": "https://mcp.pkulaw.com/",
             "autoStart": true,
             "enabled": true
         },
@@ -27,6 +29,8 @@
                 "envHeaders": {
                 }
             },
+            "authRequired": true,
+            "authWebsite": "https://mcp.pkulaw.com/",
             "autoStart": true,
             "enabled": true
         },
@@ -42,6 +46,8 @@
                 "envHeaders": {
                 }
             },
+            "authRequired": true,
+            "authWebsite": "https://mcp.pkulaw.com/",
             "autoStart": true,
             "enabled": true
         },
@@ -55,6 +61,8 @@
             "auth": {
                 "envHeaders": {}
             },
+            "authRequired": false,
+            "authWebsite": "",
             "autoStart": true,
             "enabled": true
         }
