@@ -48,7 +48,7 @@
             "description": "学术论文检索与下载（arXiv/PubMed/Semantic Scholar等）",
             "tag": "科研",
             "type": "streamable-http",
-            "url": "http://127.0.0.1:5896/mcp",
+            "url": "http://47.119.42.41:5896/mcp",
             "auth": {
                 "envHeaders": {}
             },
