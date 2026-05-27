@@ -3,7 +3,7 @@
         {
             "id": "paper-search-mcp",
             "name": "Paper Search MCP",
-            "description": "学术论文检索与下载（arXiv/PubMed/Semantic Scholar等）",
+            "description": "Research Paper Search & Download(arXiv / PubMed / Semantic Scholar, etc.)",
             "tag": "Research",
             "type": "streamable-http",
             "url": "http://47.119.42.41:5896/mcp",
